@@ -1,0 +1,67 @@
+[project]
+name            = "rocket-numerical-simulator"
+version         = "0.1.0"
+description     = "MAT423E · Numerical simulation of variable-mass rocket flight (Forward Euler vs RK4)."
+readme          = "README.md"
+requires-python = ">=3.10"
+license         = { text = "MIT" }
+authors         = [{ name = "Omer Selcuk", email = "omrselcuk@icloud.com" }]
+keywords        = ["ode", "numerical-methods", "rocket-dynamics", "runge-kutta", "euler", "mat423e"]
+urls            = { Homepage = "https://github.com/omrselcuk/mat423" }
+classifiers     = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Education",
+  "Programming Language :: Python :: 3",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Topic :: Education",
+]
+
+# Runtime dependencies — needed to run the simulation and open the notebook.
+dependencies = [
+  "numpy>=1.26",
+  "matplotlib>=3.8",
+  "jupyterlab>=4.0",
+  "ipykernel>=6.29",
+  "nbformat>=5.10",
+]
+
+[project.optional-dependencies]
+# Development / quality-of-life. Install with:  pip install -e ".[dev]"
+dev = [
+  "nbconvert>=7.16",      # to execute the notebook headlessly
+  "ruff>=0.4",            # linter / formatter
+  "pytest>=8.0",          # if you add tests later
+]
+
+[project.scripts]
+# `rocket-sim` becomes available on PATH after `pip install -e .`
+rocket-sim = "rocket_simulation:main"
+
+[project.urls]
+Documentation = "file://./README.md"
+
+# --- Build backend ------------------------------------------------
+# Lightweight: use hatchling so this works as an installable package
+# without any extra setup files.
+[build-system]
+requires      = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+# We only ship the simulation module, not the notebook or HTML.
+include = ["rocket_simulation.py"]
+
+[tool.hatch.build.targets.wheel.sources]
+"rocket_simulation.py" = "rocket_simulation.py"
+
+# --- Linting / formatting ----------------------------------------
+[tool.ruff]
+line-length    = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM"]
+ignore = ["E501"]   # we already cap at 100; let docstrings breathe
+
+[tool.ruff.format]
+quote-style = "double"

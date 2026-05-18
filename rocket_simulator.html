@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Rocket Motion — Numerical Solver · MAT423E</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root {
+    --bg: #0f1216;
+    --panel: #161b22;
+    --panel-2: #1d232c;
+    --line: #2a313c;
+    --text: #e7ecf3;
+    --muted: #8b97a7;
+    --accent: #4f8ef7;
+    --euler: #f0883e;
+    --rk4: #2ea043;
+    --warn: #f85149;
+    --ok: #2ea043;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--bg); color: var(--text); margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; }
+  header { padding: 20px 28px; border-bottom: 1px solid var(--line); }
+  h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .subtitle { color: var(--muted); margin-top: 4px; font-size: 13px; }
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 24px; padding: 24px 28px; }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; }
+  .panel h2 { margin: 0 0 14px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .field input, .field select { width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button { width: 100%; padding: 10px 14px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: 600; font-size: 13px; cursor: pointer; margin-top: 6px; transition: filter 0.15s; }
+  button:hover { filter: brightness(1.1); }
+  button.secondary { background: var(--panel-2); border: 1px solid var(--line); color: var(--text); }
+  .preset-row { display: flex; gap: 6px; margin-bottom: 14px; }
+  .preset-row button { margin: 0; padding: 6px 10px; font-size: 11px; font-weight: 500; }
+
+  .results { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+  .result-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
+  .result-card.euler { border-left: 3px solid var(--euler); }
+  .result-card.rk4 { border-left: 3px solid var(--rk4); }
+  .result-card h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
+  .result-card .row-r { display: flex; justify-content: space-between; padding: 3px 0; font-size: 13px; }
+  .result-card .row-r span:first-child { color: var(--muted); }
+  .result-card .row-r span:last-child { font-variant-numeric: tabular-nums; font-weight: 500; }
+
+  .feasibility { margin-bottom: 16px; padding: 10px 14px; border-radius: 8px; font-size: 13px; border: 1px solid var(--line); }
+  .feasibility.ok { background: rgba(46,160,67,0.1); border-color: rgba(46,160,67,0.4); color: #7ee787; }
+  .feasibility.warn { background: rgba(248,81,73,0.1); border-color: rgba(248,81,73,0.4); color: #ff7b72; }
+
+  .tabs { display: flex; gap: 2px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .tab { padding: 9px 16px; background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 13px; font-weight: 500; border-bottom: 2px solid transparent; margin: 0; width: auto; border-radius: 0; }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .tab:hover { color: var(--text); }
+  .chart-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; min-height: 460px; position: relative; }
+  .chart-wrap canvas { max-height: 460px; }
+
+  .tab-info { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+  code { background: var(--panel-2); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+  footer { padding: 24px 28px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Rocket Motion — Numerical Solver</h1>
+  <div class="subtitle">Variable-mass rocket · Forward Euler vs RK4 · MAT423E</div>
+</header>
+
+<div class="layout">
+
+  <!-- ============== LEFT: PARAMETERS ============== -->
+  <div>
+    <div class="panel">
+      <h2>Preset</h2>
+      <div class="preset-row">
+        <button class="secondary" data-preset="falcon">Falcon-class</button>
+        <button class="secondary" data-preset="hobby">Hobby rocket</button>
+        <button class="secondary" data-preset="assign">Assignment</button>
+      </div>
+
+      <h2>Rocket</h2>
+      <div class="field">
+        <label>Initial mass M₀ (kg)</label>
+        <input type="number" id="M0" value="500000" step="1000">
+      </div>
+      <div class="field">
+        <label>Dry mass m_dry (kg)</label>
+        <input type="number" id="MDRY" value="50000" step="1000">
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Burn rate ṁ (kg/s)</label>
+          <input type="number" id="MDOT" value="1500" step="100">
+        </div>
+        <div class="field">
+          <label>Exhaust v_e (m/s)</label>
+          <input type="number" id="VEXH" value="3000" step="100">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label>Drag coef C_d</label>
+          <input type="number" id="CD" value="0.5" step="0.05">
+        </div>
+        <div class="field">
+          <label>Cross-section A (m²)</label>
+          <input type="number" id="AREA" value="10.75" step="0.5">
+        </div>
+      </div>
+
+      <h2 style="margin-top:18px">Environment</h2>
+      <div class="row">
+        <div class="field">
+          <label>g₀ (m/s²)</label>
+          <input type="number" id="G0" value="9.80665" step="0.01">
+        </div>
+        <div class="field">
+          <label>ρ₀ (kg/m³)</label>
+          <input type="number" id="RHO0" value="1.225" step="0.05">
+        </div>
+      </div>
+      <div class="field">
+        <label>Atmosphere model</label>
+        <select id="ATMOS">
+          <option value="exp">Exponential (recommended)</option>
+          <option value="const">Constant ρ</option>
+          <option value="none">No drag</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Gravity model</label>
+        <select id="GMODEL">
+          <option value="invsq">Inverse-square (altitude-dep.)</option>
+          <option value="const">Constant g</option>
+        </select>
+      </div>
+
+      <h2 style="margin-top:18px">Solver</h2>
+      <div class="row">
+        <div class="field">
+          <label>Step size h (s)</label>
+          <input type="number" id="DT" value="0.1" step="0.05">
+        </div>
+        <div class="field">
+          <label>t_max (s)</label>
+          <input type="number" id="TMAX" value="1200" step="60">
+        </div>
+      </div>
+      <button id="runBtn">Run Simulation</button>
+    </div>
+  </div>
+
+  <!-- ============== RIGHT: RESULTS ============== -->
+  <div>
+    <div id="feasibility" class="feasibility ok"></div>
+
+    <div class="results">
+      <div class="result-card euler">
+        <h3 style="color: var(--euler)">Forward Euler</h3>
+        <div class="row-r"><span>Apogee</span><span id="e-apo">—</span></div>
+        <div class="row-r"><span>Time at apogee</span><span id="e-tapo">—</span></div>
+        <div class="row-r"><span>v at cutoff</span><span id="e-vcut">—</span></div>
+        <div class="row-r"><span>Impact time</span><span id="e-timp">—</span></div>
+      </div>
+      <div class="result-card rk4">
+        <h3 style="color: var(--rk4)">4th-order Runge–Kutta</h3>
+        <div class="row-r"><span>Apogee</span><span id="r-apo">—</span></div>
+        <div class="row-r"><span>Time at apogee</span><span id="r-tapo">—</span></div>
+        <div class="row-r"><span>v at cutoff</span><span id="r-vcut">—</span></div>
+        <div class="row-r"><span>Impact time</span><span id="r-timp">—</span></div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-view="altitude">Altitude</button>
+      <button class="tab" data-view="velocity">Velocity</button>
+      <button class="tab" data-view="acceleration">Acceleration</button>
+      <button class="tab" data-view="convergence">Convergence (Euler vs RK4 order)</button>
+    </div>
+
+    <div class="chart-wrap">
+      <canvas id="chart"></canvas>
+    </div>
+    <div class="tab-info" id="tab-info"></div>
+
+  </div>
+</div>
+
+<footer>
+  Built for MAT423E · Physics: <code>m·dv/dt = T − m·g(y) − ½·ρ(y)·C_d·A·v·|v|</code> with engine-cutoff handling and ground-hold logic for sub-unity T/W.
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// =============================================================
+// Physics model
+// =============================================================
+const R_E = 6.371e6;
+const H_ATM = 8500.0;
+
+function makeModel(p) {
+  const tBurn = (p.M0 - p.MDRY) / p.MDOT;
+  const T0 = p.MDOT * p.VEXH;
+
+  const gravity = (y) =>
+    p.GMODEL === 'const' ? p.G0 :
+    p.G0 * Math.pow(R_E / (R_E + Math.max(y, 0)), 2);
+
+  const rho = (y) =>
+    p.ATMOS === 'none' ? 0 :
+    p.ATMOS === 'const' ? p.RHO0 :
+    p.RHO0 * Math.exp(-Math.max(y, 0) / H_ATM);
+
+  const mass    = (t) => t < tBurn ? p.M0 - p.MDOT * t : p.MDRY;
+  const thrust  = (t) => t < tBurn ? T0 : 0;
+
+  const rhs = (t, s) => {
+    const [y, v] = s;
+    const m   = mass(t);
+    const g   = gravity(y);
+    const dr  = 0.5 * rho(y) * p.CD * p.AREA * v * Math.abs(v);
+    const Fn  = thrust(t) - m * g - dr;
+    if (y <= 0 && v <= 0 && Fn <= 0) return [0, 0];   // ground hold
+    return [v, Fn / m];
+  };
+
+  return { rhs, tBurn, T0, mass, gravity, rho, thrust };
+}
+
+// =============================================================
+// Solvers — return arrays of {t, y, v, a}
+// =============================================================
+function euler(model, p) {
+  const out = [];
+  let t = 0, s = [0, 0];
+  out.push({ t, y: s[0], v: s[1], a: model.rhs(t, s)[1] });
+  while (t < p.TMAX) {
+    const k = model.rhs(t, s);
+    s = [s[0] + p.DT * k[0], s[1] + p.DT * k[1]];
+    t += p.DT;
+    out.push({ t, y: s[0], v: s[1], a: model.rhs(t, s)[1] });
+    if (s[0] < 0 && t > 1) break;
+  }
+  return out;
+}
+
+function rk4(model, p) {
+  const out = [];
+  let t = 0, s = [0, 0];
+  out.push({ t, y: s[0], v: s[1], a: model.rhs(t, s)[1] });
+  const add = (a, b, sc) => [a[0] + sc * b[0], a[1] + sc * b[1]];
+  while (t < p.TMAX) {
+    const k1 = model.rhs(t, s);
+    const k2 = model.rhs(t + p.DT/2, add(s, k1, p.DT/2));
+    const k3 = model.rhs(t + p.DT/2, add(s, k2, p.DT/2));
+    const k4 = model.rhs(t + p.DT,   add(s, k3, p.DT));
+    s = [
+      s[0] + p.DT/6 * (k1[0] + 2*k2[0] + 2*k3[0] + k4[0]),
+      s[1] + p.DT/6 * (k1[1] + 2*k2[1] + 2*k3[1] + k4[1]),
+    ];
+    t += p.DT;
+    out.push({ t, y: s[0], v: s[1], a: model.rhs(t, s)[1] });
+    if (s[0] < 0 && t > 1) break;
+  }
+  return out;
+}
+
+// =============================================================
+// Summarize a trajectory
+// =============================================================
+function summarize(traj, tBurn) {
+  let apoIdx = 0;
+  for (let i = 1; i < traj.length; i++) if (traj[i].y > traj[apoIdx].y) apoIdx = i;
+  let vCut = 0;
+  for (let i = 0; i < traj.length - 1; i++) {
+    if (traj[i].t <= tBurn && traj[i+1].t >= tBurn) {
+      const w = (tBurn - traj[i].t) / (traj[i+1].t - traj[i].t);
+      vCut = traj[i].v + w * (traj[i+1].v - traj[i].v);
+      break;
+    }
+  }
+  return { apogee: traj[apoIdx].y, tApogee: traj[apoIdx].t, vCut, tImpact: traj[traj.length - 1].t };
+}
+
+// =============================================================
+// UI plumbing
+// =============================================================
+const presets = {
+  falcon:  { M0: 549000, MDRY: 25600, MDOT: 2555, VEXH: 2770, CD: 0.5, AREA: 10.75, G0: 9.80665, RHO0: 1.225, DT: 0.1, TMAX: 1200, ATMOS: 'exp', GMODEL: 'invsq' },
+  hobby:   { M0: 5, MDRY: 1, MDOT: 0.05, VEXH: 1200, CD: 0.6, AREA: 0.008, G0: 9.81, RHO0: 1.225, DT: 0.01, TMAX: 60, ATMOS: 'exp', GMODEL: 'const' },
+  assign:  { M0: 500000, MDRY: 50000, MDOT: 1500, VEXH: 3000, CD: 0.5, AREA: 10.75, G0: 9.80665, RHO0: 1.225, DT: 0.1, TMAX: 1200, ATMOS: 'exp', GMODEL: 'invsq' },
+};
+
+function readParams() {
+  const num = (id) => parseFloat(document.getElementById(id).value);
+  return {
+    M0: num('M0'), MDRY: num('MDRY'), MDOT: num('MDOT'), VEXH: num('VEXH'),
+    CD: num('CD'), AREA: num('AREA'), G0: num('G0'), RHO0: num('RHO0'),
+    DT: num('DT'), TMAX: num('TMAX'),
+    ATMOS: document.getElementById('ATMOS').value,
+    GMODEL: document.getElementById('GMODEL').value,
+  };
+}
+
+function writeParams(p) {
+  for (const k of ['M0','MDRY','MDOT','VEXH','CD','AREA','G0','RHO0','DT','TMAX'])
+    document.getElementById(k).value = p[k];
+  document.getElementById('ATMOS').value = p.ATMOS;
+  document.getElementById('GMODEL').value = p.GMODEL;
+}
+
+document.querySelectorAll('[data-preset]').forEach(b => {
+  b.onclick = () => { writeParams(presets[b.dataset.preset]); run(); };
+});
+
+// =============================================================
+// Formatting
+// =============================================================
+function fmtAlt(m) {
+  if (Math.abs(m) >= 1000) return (m/1000).toFixed(2) + ' km';
+  return m.toFixed(1) + ' m';
+}
+const fmtV = (v) => v.toFixed(1) + ' m/s';
+const fmtT = (t) => t.toFixed(1) + ' s';
+
+// =============================================================
+// Charting
+// =============================================================
+let chart = null;
+let lastResult = null;
+
+function makeChart(view) {
+  const ctx = document.getElementById('chart').getContext('2d');
+  if (chart) chart.destroy();
+  if (!lastResult) return;
+  const { tE, tR, p, tBurn } = lastResult;
+
+  const downsample = (arr, n=400) => {
+    if (arr.length <= n) return arr;
+    const step = Math.ceil(arr.length / n);
+    return arr.filter((_, i) => i % step === 0 || i === arr.length - 1);
+  };
+
+  let cfg;
+  if (view === 'convergence') {
+    cfg = buildConvergence(p, tBurn);
+  } else {
+    const field = view === 'altitude' ? 'y' : view === 'velocity' ? 'v' : 'a';
+    const scale = field === 'y' ? 1/1000 : 1;
+    const yLabel = field === 'y' ? 'Altitude (km)' : field === 'v' ? 'Velocity (m/s)' : 'Acceleration (m/s²)';
+    const dsE = downsample(tE).map(p => ({ x: p.t, y: p[field] * scale }));
+    const dsR = downsample(tR).map(p => ({ x: p.t, y: p[field] * scale }));
+
+    cfg = {
+      type: 'line',
+      data: {
+        datasets: [
+          { label: 'Forward Euler', data: dsE, borderColor: '#f0883e', backgroundColor: 'rgba(240,136,62,0.1)', borderWidth: 2, pointRadius: 0, tension: 0.1 },
+          { label: 'RK4', data: dsR, borderColor: '#2ea043', backgroundColor: 'rgba(46,160,67,0.1)', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, tension: 0.1 },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: '#e7ecf3' } },
+          tooltip: { mode: 'index', intersect: false, callbacks: { title: ctx => `t = ${ctx[0].parsed.x.toFixed(1)} s` } },
+          annotation: {},
+        },
+        interaction: { mode: 'nearest', axis: 'x', intersect: false },
+        scales: {
+          x: { type: 'linear', title: { display: true, text: 'Time (s)', color: '#8b97a7' }, ticks: { color: '#8b97a7' }, grid: { color: '#2a313c' } },
+          y: { title: { display: true, text: yLabel, color: '#8b97a7' }, ticks: { color: '#8b97a7' }, grid: { color: '#2a313c' } },
+        },
+      },
+      plugins: [{
+        id: 'cutoffLine',
+        afterDatasetsDraw(c) {
+          const x = c.scales.x.getPixelForValue(tBurn);
+          if (x < c.chartArea.left || x > c.chartArea.right) return;
+          const { ctx, chartArea } = c;
+          ctx.save();
+          ctx.strokeStyle = '#f85149'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(x, chartArea.top); ctx.lineTo(x, chartArea.bottom); ctx.stroke();
+          ctx.fillStyle = '#f85149'; ctx.font = '11px -apple-system, sans-serif';
+          ctx.fillText(`engine cutoff t=${tBurn.toFixed(0)}s`, x + 6, chartArea.top + 14);
+          ctx.restore();
+        }
+      }],
+    };
+  }
+  chart = new Chart(ctx, cfg);
+}
+
+function buildConvergence(p, tBurn) {
+  const dts = [4.0, 2.0, 1.0, 0.5, 0.2, 0.1, 0.05, 0.02];
+  const model = makeModel(p);
+  // Reference: RK4 at h = 0.01
+  const refRun = rk4(model, { ...p, DT: 0.01 });
+  const refApo = Math.max(...refRun.map(x => x.y));
+
+  const ePts = [], rPts = [];
+  for (const h of dts) {
+    const pp = { ...p, DT: h };
+    const e = euler(model, pp);
+    const r = rk4(model, pp);
+    const eApo = Math.max(...e.map(x => x.y));
+    const rApo = Math.max(...r.map(x => x.y));
+    ePts.push({ x: h, y: Math.max(Math.abs(eApo - refApo), 1e-6) });
+    rPts.push({ x: h, y: Math.max(Math.abs(rApo - refApo), 1e-6) });
+  }
+
+  // Reference slope lines
+  const slope1 = dts.map(h => ({ x: h, y: ePts[0].y * (h / dts[0]) }));
+  const slope4 = dts.map(h => ({ x: h, y: rPts[0].y * Math.pow(h / dts[0], 4) }));
+
+  return {
+    type: 'line',
+    data: { datasets: [
+      { label: 'Euler error', data: ePts, borderColor: '#f0883e', backgroundColor: '#f0883e', pointRadius: 5, showLine: true, borderWidth: 2 },
+      { label: 'RK4 error',   data: rPts, borderColor: '#2ea043', backgroundColor: '#2ea043', pointRadius: 5, showLine: true, borderWidth: 2, borderDash: [6, 4] },
+      { label: 'slope 1 (Euler theoretical)', data: slope1, borderColor: '#8b97a7', borderWidth: 1, borderDash: [2, 3], pointRadius: 0 },
+      { label: 'slope 4 (RK4 theoretical)',   data: slope4, borderColor: '#4f8ef7', borderWidth: 1, borderDash: [2, 3], pointRadius: 0 },
+    ] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#e7ecf3' } } },
+      scales: {
+        x: { type: 'logarithmic', title: { display: true, text: 'Step size h (s)', color: '#8b97a7' }, ticks: { color: '#8b97a7' }, grid: { color: '#2a313c' } },
+        y: { type: 'logarithmic', title: { display: true, text: '|apogee − reference|  (m)', color: '#8b97a7' }, ticks: { color: '#8b97a7' }, grid: { color: '#2a313c' } },
+      },
+    },
+  };
+}
+
+// =============================================================
+// Main run
+// =============================================================
+function run() {
+  const p = readParams();
+  const model = makeModel(p);
+
+  // Feasibility
+  const TW = model.T0 / (p.M0 * p.G0);
+  const fe = document.getElementById('feasibility');
+  if (TW < 1) {
+    fe.className = 'feasibility warn';
+    fe.innerHTML = `<strong>T/W = ${TW.toFixed(2)} &lt; 1.</strong> Rocket cannot lift off at t=0 — it will sit on the pad until enough fuel burns away (mass &lt; ${(model.T0/p.G0).toFixed(0)} kg). The simulator handles this with a ground-hold condition.`;
+  } else {
+    fe.className = 'feasibility ok';
+    fe.innerHTML = `<strong>T/W = ${TW.toFixed(2)}.</strong> Sufficient thrust to lift off immediately. Burn time = ${model.tBurn.toFixed(1)} s.`;
+  }
+
+  const tE = euler(model, p);
+  const tR = rk4(model, p);
+  const sE = summarize(tE, model.tBurn);
+  const sR = summarize(tR, model.tBurn);
+
+  document.getElementById('e-apo').textContent  = fmtAlt(sE.apogee);
+  document.getElementById('e-tapo').textContent = fmtT(sE.tApogee);
+  document.getElementById('e-vcut').textContent = fmtV(sE.vCut);
+  document.getElementById('e-timp').textContent = fmtT(sE.tImpact);
+  document.getElementById('r-apo').textContent  = fmtAlt(sR.apogee);
+  document.getElementById('r-tapo').textContent = fmtT(sR.tApogee);
+  document.getElementById('r-vcut').textContent = fmtV(sR.vCut);
+  document.getElementById('r-timp').textContent = fmtT(sR.tImpact);
+
+  lastResult = { tE, tR, p, tBurn: model.tBurn };
+  const active = document.querySelector('.tab.active').dataset.view;
+  makeChart(active);
+  updateTabInfo(active, p, sE, sR);
+}
+
+function updateTabInfo(view, p, sE, sR) {
+  const info = {
+    altitude: `Altitude vs time. The red dashed vertical line marks engine cutoff at t = ${((p.M0 - p.MDRY)/p.MDOT).toFixed(0)} s. After cutoff the rocket coasts under gravity + drag.`,
+    velocity: `Velocity vs time. Note the kink at cutoff — acceleration is discontinuous because thrust drops to zero instantly while gravity stays on.`,
+    acceleration: `Acceleration vs time. The discontinuity at cutoff has magnitude T/m_dry = ${(p.MDOT * p.VEXH / p.MDRY).toFixed(1)} m/s². Drag effects become visible during the ballistic phase.`,
+    convergence: `Apogee error vs step size, log–log. Forward Euler should track slope 1 (1st-order global error). RK4 should track slope 4. Reference = RK4 at h=0.01 s.`,
+  };
+  document.getElementById('tab-info').innerHTML = info[view];
+}
+
+document.querySelectorAll('.tab').forEach(t => {
+  t.onclick = () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    makeChart(t.dataset.view);
+    if (lastResult) updateTabInfo(t.dataset.view, lastResult.p,
+      summarize(lastResult.tE, lastResult.tBurn),
+      summarize(lastResult.tR, lastResult.tBurn));
+  };
+});
+
+document.getElementById('runBtn').onclick = run;
+
+// Initial run
+run();
+</script>
+</body>
+</html>

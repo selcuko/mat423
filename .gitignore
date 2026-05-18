@@ -1,0 +1,45 @@
+# --- Python ------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+build/
+dist/
+.eggs/
+.installed.cfg
+
+# --- Virtual environments ---------------------------------------
+.venv/
+venv/
+env/
+.env
+
+# --- uv / pip ----------------------------------------------------
+.uv-cache/
+pip-wheel-metadata/
+pip-log.txt
+
+# --- Jupyter / IPython ------------------------------------------
+.ipynb_checkpoints/
+profile_default/
+ipython_config.py
+
+# --- Editors / OS -----------------------------------------------
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Test / coverage --------------------------------------------
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- Project-specific -------------------------------------------
+# Allow the headline trajectory.png in to the repo (it's a deliverable),
+# but ignore any other ad-hoc figures generated during exploration.
+*.tmp.png
+*.scratch.png
