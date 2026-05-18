@@ -1,28 +1,16 @@
 # Numerical Simulation of Rocket Flight
 
-> Vertically-launched, variable-mass rocket. Forward Euler vs RK4 on the coupled
-> `(y, v)` ODE system, with altitude-dependent gravity, exponential atmosphere,
-> quadratic drag, and a ground-hold gate for sub-unity initial T/W. Built for
-> *MAT423E — Numerical Solutions of ODEs.*
+Vertically-launched, variable-mass rocket. Forward Euler vs RK4 on the coupled `(y, v)` ODE system, with altitude-dependent gravity, exponential atmosphere, quadratic drag, and a ground-hold gate for sub-unity initial T/W. MAT423E coursework.
 
 **Live demo:** [mat423.vercel.app](https://mat423.vercel.app)
 
 ![Altitude and velocity vs time, Euler and RK4 overlay, with engine-cutoff and apogee marker](trajectory.png)
 
----
-
 ## What the simulation does
 
-A 500-tonne rocket burns fuel at `ṁ = 1500 kg/s`, ejected at `vₑ = 3000 m/s`,
-giving a constant thrust of `T = ṁ·vₑ = 4.5 MN` until the propellant runs out
-at `t_b = 300 s`. The rocket is modelled as a point mass moving vertically;
-state is `(y, v)`. Two integrators march it forward — Forward Euler (1st order)
-and classical RK4 (4th order) — and the convergence behaviour of both is
-measured against a refined-step RK4 reference.
+A 500-tonne rocket burns fuel at `ṁ = 1500 kg/s`, ejected at `vₑ = 3000 m/s`, giving a constant thrust of `T = ṁ·vₑ = 4.5 MN` until the propellant runs out at `t_b = 300 s`. State is `(y, v)`; mass is closed-form in `t`. Two integrators march the state forward — Forward Euler (1st order) and classical RK4 (4th order) — and their convergence is measured against a refined-step RK4 reference.
 
-The script `rocket_simulation.py` prints a summary and writes `trajectory.png`.
-The HTML demo (`rocket_simulator.html`) is the same physics in JavaScript, with
-parameter sliders and live Chart.js plots.
+`rocket_simulation.py` prints a summary and writes `trajectory.png`. `rocket_simulator.html` is the same physics in JavaScript with parameter inputs and live Chart.js plots.
 
 ## The model
 
@@ -136,51 +124,35 @@ toggles, and four chart tabs (altitude, velocity, acceleration, convergence).
 
 ## Run it
 
-### Python script
+**Python script.** Writes `trajectory.png` and prints the summary above.
 
 ```bash
 uv venv && uv pip install -e ".[dev]"
 uv run python rocket_simulation.py
-# → writes trajectory.png and prints the summary above
 ```
 
-Plain pip works too: `python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"`.
+(Plain pip: `python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]"`.)
 
-### Jupyter notebook
+**Jupyter notebook.** Same numbers as the script, with per-step inspection plots and the engine-cutoff zoom.
 
 ```bash
 uv run jupyter lab rocket_simulation.ipynb
 ```
 
-The notebook walks through the physics cell by cell — same numbers as the script, plus the per-step inspection plots and the engine-cutoff zoom.
+**HTML demo.** Open `rocket_simulator.html` in a browser — no server needed, Chart.js loads from a CDN. Or use the [live demo](https://mat423.vercel.app).
 
-### HTML demo
-
-Open `rocket_simulator.html` in a browser. No server needed; Chart.js loads from a CDN.
-
-## Repository layout
+## Layout
 
 ```
-.
-├── rocket_simulation.py        ← standalone Python entry point
-├── rocket_simulation.ipynb     ← annotated notebook
-├── rocket_simulator.html       ← interactive web demo
-├── trajectory.png              ← headline output figure
-├── figs/
-│   ├── free_body.png           ← README diagram
-│   ├── demo.png                ← README screenshot of the HTML demo
-│   └── generate_free_body.py   ← rebuild script for free_body.png
-├── pyproject.toml
-├── .python-version
-└── README.md
+rocket_simulation.py        Python entry point
+rocket_simulation.ipynb     annotated notebook
+rocket_simulator.html       interactive web demo
+trajectory.png              headline output figure
+figs/                       README assets + generator script
+pyproject.toml              metadata and deps
 ```
 
-## Requirements
-
-- Python ≥ 3.10 (tested on 3.14), `numpy`, `matplotlib`
-- Any modern browser for the HTML demo
-
-All Python deps are listed in `pyproject.toml`.
+Python 3.10+ (tested on 3.14), `numpy`, `matplotlib`. Full deps in `pyproject.toml`.
 
 ## License
 

@@ -3,6 +3,7 @@
 Run from the repo root:
     python figs/generate_free_body.py
 """
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt

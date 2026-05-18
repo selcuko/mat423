@@ -75,7 +75,6 @@
 
 <div class="layout">
 
-  <!-- ============== LEFT: PARAMETERS ============== -->
   <div>
     <div class="panel">
       <h2>Preset</h2>
@@ -157,7 +156,6 @@
     </div>
   </div>
 
-  <!-- ============== RIGHT: RESULTS ============== -->
   <div>
     <div id="feasibility" class="feasibility ok"></div>
 
@@ -194,16 +192,13 @@
 </div>
 
 <footer>
-  Built for MAT423E · Physics: <code>m·dv/dt = T − m·g(y) − ½·ρ(y)·C_d·A·v·|v|</code> with engine-cutoff handling and ground-hold logic for sub-unity T/W.
-  <br>
-  Source: <a href="https://github.com/selcuko/mat423" style="color: var(--accent); text-decoration: none;">github.com/selcuko/mat423</a>
+  <code>m·dv/dt = T − m·g(y) − ½·ρ(y)·C_d·A·v·|v|</code>
+  · MAT423E
+  · Source: <a href="https://github.com/selcuko/mat423" style="color: var(--accent); text-decoration: none;">github.com/selcuko/mat423</a>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-// =============================================================
-// Physics model
-// =============================================================
 const R_E = 6.371e6;
 const H_ATM = 8500.0;
 
@@ -236,9 +231,7 @@ function makeModel(p) {
   return { rhs, tBurn, T0, mass, gravity, rho, thrust };
 }
 
-// =============================================================
-// Solvers — return arrays of {t, y, v, a}
-// =============================================================
+// Solvers — return arrays of {t, y, v, a}.
 function euler(model, p) {
   const out = [];
   let t = 0, s = [0, 0];
@@ -274,9 +267,6 @@ function rk4(model, p) {
   return out;
 }
 
-// =============================================================
-// Summarize a trajectory
-// =============================================================
 function summarize(traj, tBurn) {
   let apoIdx = 0;
   for (let i = 1; i < traj.length; i++) if (traj[i].y > traj[apoIdx].y) apoIdx = i;
@@ -291,9 +281,6 @@ function summarize(traj, tBurn) {
   return { apogee: traj[apoIdx].y, tApogee: traj[apoIdx].t, vCut, tImpact: traj[traj.length - 1].t };
 }
 
-// =============================================================
-// UI plumbing
-// =============================================================
 const presets = {
   falcon:  { M0: 549000, MDRY: 25600, MDOT: 2555, VEXH: 2770, CD: 0.5, AREA: 10.75, G0: 9.80665, RHO0: 1.225, DT: 0.1, TMAX: 1200, ATMOS: 'exp', GMODEL: 'invsq' },
   hobby:   { M0: 5, MDRY: 1, MDOT: 0.05, VEXH: 1200, CD: 0.6, AREA: 0.008, G0: 9.81, RHO0: 1.225, DT: 0.01, TMAX: 60, ATMOS: 'exp', GMODEL: 'const' },
@@ -322,9 +309,6 @@ document.querySelectorAll('[data-preset]').forEach(b => {
   b.onclick = () => { writeParams(presets[b.dataset.preset]); run(); };
 });
 
-// =============================================================
-// Formatting
-// =============================================================
 function fmtAlt(m) {
   if (Math.abs(m) >= 1000) return (m/1000).toFixed(2) + ' km';
   return m.toFixed(1) + ' m';
@@ -332,9 +316,6 @@ function fmtAlt(m) {
 const fmtV = (v) => v.toFixed(1) + ' m/s';
 const fmtT = (t) => t.toFixed(1) + ' s';
 
-// =============================================================
-// Charting
-// =============================================================
 let chart = null;
 let lastResult = null;
 
@@ -448,9 +429,6 @@ function buildConvergence(p, tBurn) {
   };
 }
 
-// =============================================================
-// Main run
-// =============================================================
 function run() {
   const p = readParams();
   const model = makeModel(p);
