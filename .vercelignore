@@ -1,0 +1,14 @@
+.venv
+.ruff_cache
+__pycache__
+.pytest_cache
+.ipynb_checkpoints
+*.ipynb
+*.py
+rocket_simulation.py
+pyproject.toml
+.python-version
+.omc
+.git
+LICENSE
+.gitignore

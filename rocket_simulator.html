@@ -55,8 +55,11 @@
   .tab { padding: 9px 16px; background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 13px; font-weight: 500; border-bottom: 2px solid transparent; margin: 0; width: auto; border-radius: 0; }
   .tab.active { color: var(--text); border-bottom-color: var(--accent); }
   .tab:hover { color: var(--text); }
-  .chart-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; min-height: 460px; position: relative; }
-  .chart-wrap canvas { max-height: 460px; }
+  /* Fixed height on the chart wrapper is critical — without it, Chart.js with
+     `maintainAspectRatio: false` enters an infinite resize loop with the
+     surrounding flex/grid layout. */
+  .chart-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; height: 500px; position: relative; box-sizing: border-box; }
+  .chart-wrap canvas { width: 100% !important; height: 100% !important; display: block; }
 
   .tab-info { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
   code { background: var(--panel-2); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
@@ -77,9 +80,9 @@
     <div class="panel">
       <h2>Preset</h2>
       <div class="preset-row">
-        <button class="secondary" data-preset="falcon">Falcon-class</button>
-        <button class="secondary" data-preset="hobby">Hobby rocket</button>
-        <button class="secondary" data-preset="assign">Assignment</button>
+        <button type="button" class="secondary" data-preset="falcon">Falcon-class</button>
+        <button type="button" class="secondary" data-preset="hobby">Hobby rocket</button>
+        <button type="button" class="secondary" data-preset="assign">Assignment</button>
       </div>
 
       <h2>Rocket</h2>
@@ -150,7 +153,7 @@
           <input type="number" id="TMAX" value="1200" step="60">
         </div>
       </div>
-      <button id="runBtn">Run Simulation</button>
+      <button type="button" id="runBtn">Run Simulation</button>
     </div>
   </div>
 
@@ -176,10 +179,10 @@
     </div>
 
     <div class="tabs">
-      <button class="tab active" data-view="altitude">Altitude</button>
-      <button class="tab" data-view="velocity">Velocity</button>
-      <button class="tab" data-view="acceleration">Acceleration</button>
-      <button class="tab" data-view="convergence">Convergence (Euler vs RK4 order)</button>
+      <button type="button" class="tab active" data-view="altitude">Altitude</button>
+      <button type="button" class="tab" data-view="velocity">Velocity</button>
+      <button type="button" class="tab" data-view="acceleration">Acceleration</button>
+      <button type="button" class="tab" data-view="convergence">Convergence (Euler vs RK4 order)</button>
     </div>
 
     <div class="chart-wrap">
@@ -192,6 +195,8 @@
 
 <footer>
   Built for MAT423E · Physics: <code>m·dv/dt = T − m·g(y) − ½·ρ(y)·C_d·A·v·|v|</code> with engine-cutoff handling and ground-hold logic for sub-unity T/W.
+  <br>
+  Source: <a href="https://github.com/selcuko/mat423" style="color: var(--accent); text-decoration: none;">github.com/selcuko/mat423</a>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -395,20 +400,27 @@ function makeChart(view) {
   chart = new Chart(ctx, cfg);
 }
 
+// Safe max over an array — Math.max(...arr) blows the call-stack on huge arrays.
+function maxY(arr) {
+  let m = -Infinity;
+  for (let i = 0; i < arr.length; i++) if (arr[i].y > m) m = arr[i].y;
+  return m;
+}
+
 function buildConvergence(p, tBurn) {
   const dts = [4.0, 2.0, 1.0, 0.5, 0.2, 0.1, 0.05, 0.02];
   const model = makeModel(p);
-  // Reference: RK4 at h = 0.01
+  // Reference: RK4 at h = 0.01 — a small enough step to be treated as truth.
   const refRun = rk4(model, { ...p, DT: 0.01 });
-  const refApo = Math.max(...refRun.map(x => x.y));
+  const refApo = maxY(refRun);
 
   const ePts = [], rPts = [];
   for (const h of dts) {
     const pp = { ...p, DT: h };
     const e = euler(model, pp);
     const r = rk4(model, pp);
-    const eApo = Math.max(...e.map(x => x.y));
-    const rApo = Math.max(...r.map(x => x.y));
+    const eApo = maxY(e);
+    const rApo = maxY(r);
     ePts.push({ x: h, y: Math.max(Math.abs(eApo - refApo), 1e-6) });
     rPts.push({ x: h, y: Math.max(Math.abs(rApo - refApo), 1e-6) });
   }

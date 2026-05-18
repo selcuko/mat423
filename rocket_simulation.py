@@ -8,9 +8,8 @@ atmosphere, and quadratic aerodynamic drag. Compares Forward Euler vs
 Built for MAT423E (Numerical Solutions of ODEs).
 """
 
-import numpy as np
 import matplotlib.pyplot as plt
-
+import numpy as np
 
 # -----------------------------------------------------------------
 # Physical constants
@@ -161,8 +160,8 @@ def main():
     t_e, s_e = euler(state0, t0, dt, t_max)
     t_r, s_r = rk4  (state0, t0, dt, t_max)
 
-    idx_e = summarize("Euler",  t_e, s_e)
-    idx_r = summarize("RK4",    t_r, s_r)
+    summarize("Euler", t_e, s_e)
+    idx_r = summarize("RK4", t_r, s_r)
 
     # -----------------------------------------------------------------
     # Plot:  altitude vs time, velocity vs time

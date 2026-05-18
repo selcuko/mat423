@@ -7,7 +7,6 @@ requires-python = ">=3.10"
 license         = { text = "MIT" }
 authors         = [{ name = "Omer Selcuk", email = "omrselcuk@icloud.com" }]
 keywords        = ["ode", "numerical-methods", "rocket-dynamics", "runge-kutta", "euler", "mat423e"]
-urls            = { Homepage = "https://github.com/omrselcuk/mat423" }
 classifiers     = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Education",
@@ -38,7 +37,8 @@ dev = [
 rocket-sim = "rocket_simulation:main"
 
 [project.urls]
-Documentation = "file://./README.md"
+Homepage   = "https://github.com/selcuko/mat423"
+Repository = "https://github.com/selcuko/mat423"
 
 # --- Build backend ------------------------------------------------
 # Lightweight: use hatchling so this works as an installable package
@@ -61,7 +61,11 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "UP", "B", "SIM"]
-ignore = ["E501"]   # we already cap at 100; let docstrings breathe
+ignore = [
+  "E501",   # we already cap at 100; let docstrings breathe
+  "N806",   # uppercase locals (F_net, M0, etc.) are conventional in physics code
+  "N802",   # function names are physics-driven, not always lowercase
+]
 
 [tool.ruff.format]
 quote-style = "double"

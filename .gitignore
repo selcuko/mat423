@@ -43,3 +43,13 @@ htmlcov/
 # but ignore any other ad-hoc figures generated during exploration.
 *.tmp.png
 *.scratch.png
+
+# Presentation deck is not versioned — distributed separately.
+*.pptx
+*.pdf
+
+# Vercel CLI artifacts
+.vercel
+
+# Local agent harness state
+.omc/
