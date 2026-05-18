@@ -1,4 +1,3 @@
 {
-  "rewrites": [{ "source": "/", "destination": "/rocket_simulator.html" }],
-  "cleanUrls": true
+  "rewrites": [{ "source": "/", "destination": "/rocket_simulator.html" }]
 }
