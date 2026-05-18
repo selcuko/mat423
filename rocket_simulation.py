@@ -1,5 +1,7 @@
 """Variable-mass rocket with altitude-dependent gravity, exponential atmosphere,
-and quadratic drag. Compares Forward Euler vs RK4 integration.
+and quadratic drag. Compares three solvers: Forward Euler (1st order),
+classical RK4 (4th order), and Adams-Bashforth-Moulton 4 in PECE mode
+(4th-order multistep predictor-corrector).
 
 MAT423E coursework. See README.md for the model derivation.
 """
@@ -99,6 +101,49 @@ def rk4(state0, t0, dt, t_max):
     return np.array(ts), np.array(ys)
 
 
+def abm4(state0, t0, dt, t_max):
+    """4th-order Adams-Bashforth-Moulton predictor-corrector (PECE mode).
+
+    Bootstraps with three RK4 steps to fill the four-point f-history. Per main
+    step: AB4 predicts, RHS is evaluated at the predicted state, AM4 corrects,
+    RHS is evaluated at the corrected state — two RHS calls per step versus
+    RK4's four, at the same 4th order of accuracy.
+    """
+    ts = [t0]
+    ys = [state0.copy()]
+    fs = [rhs(t0, state0)]
+
+    t, s = t0, state0.copy()
+    for _ in range(3):
+        if t >= t_max:
+            break
+        k1 = rhs(t, s)
+        k2 = rhs(t + dt / 2, s + dt / 2 * k1)
+        k3 = rhs(t + dt / 2, s + dt / 2 * k2)
+        k4 = rhs(t + dt, s + dt * k3)
+        s = s + dt / 6.0 * (k1 + 2 * k2 + 2 * k3 + k4)
+        t = t + dt
+        ts.append(t)
+        ys.append(s.copy())
+        fs.append(rhs(t, s))
+        if s[0] < 0 and t > 1.0:
+            return np.array(ts), np.array(ys)
+
+    while t < t_max:
+        s_pred = ys[-1] + dt / 24.0 * (55 * fs[-1] - 59 * fs[-2] + 37 * fs[-3] - 9 * fs[-4])
+        t_new = t + dt
+        f_pred = rhs(t_new, s_pred)
+        s_corr = ys[-1] + dt / 24.0 * (9 * f_pred + 19 * fs[-1] - 5 * fs[-2] + fs[-3])
+        t = t_new
+        ts.append(t)
+        ys.append(s_corr.copy())
+        fs.append(rhs(t, s_corr))
+        if s_corr[0] < 0 and t > 1.0:
+            break
+
+    return np.array(ts), np.array(ys)
+
+
 def summarize(label, ts, ys):
     y = ys[:, 0]
     v = ys[:, 1]
@@ -122,9 +167,11 @@ def main():
 
     t_e, s_e = euler(state0, t0, dt, t_max)
     t_r, s_r = rk4(state0, t0, dt, t_max)
+    t_a, s_a = abm4(state0, t0, dt, t_max)
 
     summarize("Euler", t_e, s_e)
     idx_r = summarize("RK4", t_r, s_r)
+    summarize("ABM4", t_a, s_a)
 
     fig, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
     axes[0].plot(
@@ -132,6 +179,14 @@ def main():
     )
     axes[0].plot(
         t_r, s_r[:, 0] / 1000, label=f"RK4            (h={dt}s)", linewidth=1.4, linestyle="--"
+    )
+    axes[0].plot(
+        t_a,
+        s_a[:, 0] / 1000,
+        label=f"ABM4 PECE      (h={dt}s)",
+        linewidth=1.4,
+        linestyle=":",
+        color="#9b59b6",
     )
     axes[0].axvline(
         T_BURN, color="firebrick", linestyle=":", label=f"Engine cutoff (t={T_BURN:.0f}s)"
@@ -146,6 +201,7 @@ def main():
 
     axes[1].plot(t_e, s_e[:, 1], label="Forward Euler", linewidth=1.4, alpha=0.85)
     axes[1].plot(t_r, s_r[:, 1], label="RK4", linewidth=1.4, linestyle="--")
+    axes[1].plot(t_a, s_a[:, 1], label="ABM4 PECE", linewidth=1.4, linestyle=":", color="#9b59b6")
     axes[1].axvline(T_BURN, color="firebrick", linestyle=":")
     axes[1].axhline(0, color="black", linewidth=0.5)
     axes[1].set_xlabel("Time  [s]")
@@ -158,11 +214,15 @@ def main():
     print("\nSaved trajectory.png")
 
     print("\nConvergence study (apogee in km):")
-    print(f"{'dt [s]':>8}  {'Euler':>10}  {'RK4':>10}")
+    print(f"{'dt [s]':>8}  {'Euler':>10}  {'RK4':>10}  {'ABM4':>10}")
     for dt_test in [2.0, 1.0, 0.5, 0.1, 0.05, 0.01]:
         _, se = euler(state0, t0, dt_test, t_max)
         _, sr = rk4(state0, t0, dt_test, t_max)
-        print(f"{dt_test:>8.3f}  {se[:, 0].max() / 1000:>10.3f}  {sr[:, 0].max() / 1000:>10.3f}")
+        _, sa = abm4(state0, t0, dt_test, t_max)
+        print(
+            f"{dt_test:>8.3f}  {se[:, 0].max() / 1000:>10.3f}  "
+            f"{sr[:, 0].max() / 1000:>10.3f}  {sa[:, 0].max() / 1000:>10.3f}"
+        )
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@
     --accent: #4f8ef7;
     --euler: #f0883e;
     --rk4: #2ea043;
+    --abm4: #9b59b6;
     --warn: #f85149;
     --ok: #2ea043;
   }
@@ -38,10 +39,12 @@
   .preset-row { display: flex; gap: 6px; margin-bottom: 14px; }
   .preset-row button { margin: 0; padding: 6px 10px; font-size: 11px; font-weight: 500; }
 
-  .results { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+  .results { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
+  @media (max-width: 1100px) { .results { grid-template-columns: 1fr; } }
   .result-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; }
   .result-card.euler { border-left: 3px solid var(--euler); }
   .result-card.rk4 { border-left: 3px solid var(--rk4); }
+  .result-card.abm4 { border-left: 3px solid var(--abm4); }
   .result-card h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; }
   .result-card .row-r { display: flex; justify-content: space-between; padding: 3px 0; font-size: 13px; }
   .result-card .row-r span:first-child { color: var(--muted); }
@@ -70,7 +73,7 @@
 
 <header>
   <h1>Rocket Motion — Numerical Solver</h1>
-  <div class="subtitle">Variable-mass rocket · Forward Euler vs RK4 · MAT423E</div>
+  <div class="subtitle">Variable-mass rocket · Forward Euler · RK4 · Adams-Bashforth-Moulton 4 · MAT423E</div>
 </header>
 
 <div class="layout">
@@ -174,6 +177,13 @@
         <div class="row-r"><span>v at cutoff</span><span id="r-vcut">—</span></div>
         <div class="row-r"><span>Impact time</span><span id="r-timp">—</span></div>
       </div>
+      <div class="result-card abm4">
+        <h3 style="color: var(--abm4)">Adams–Bashforth–Moulton 4 (PECE)</h3>
+        <div class="row-r"><span>Apogee</span><span id="a-apo">—</span></div>
+        <div class="row-r"><span>Time at apogee</span><span id="a-tapo">—</span></div>
+        <div class="row-r"><span>v at cutoff</span><span id="a-vcut">—</span></div>
+        <div class="row-r"><span>Impact time</span><span id="a-timp">—</span></div>
+      </div>
     </div>
 
     <div class="tabs">
@@ -267,6 +277,54 @@ function rk4(model, p) {
   return out;
 }
 
+// Adams–Bashforth–Moulton 4 (PECE): AB4 predicts, AM4 corrects.
+// Bootstrap with 3 RK4 steps to fill the 4-point f-history.
+function abm4(model, p) {
+  const out = [];
+  const fHist = [];
+  let t = 0, s = [0, 0];
+  out.push({ t, y: s[0], v: s[1], a: model.rhs(t, s)[1] });
+  fHist.push(model.rhs(t, s));
+  const add = (a, b, sc) => [a[0] + sc * b[0], a[1] + sc * b[1]];
+
+  for (let i = 0; i < 3 && t < p.TMAX; i++) {
+    const k1 = model.rhs(t, s);
+    const k2 = model.rhs(t + p.DT/2, add(s, k1, p.DT/2));
+    const k3 = model.rhs(t + p.DT/2, add(s, k2, p.DT/2));
+    const k4 = model.rhs(t + p.DT,   add(s, k3, p.DT));
+    s = [
+      s[0] + p.DT/6 * (k1[0] + 2*k2[0] + 2*k3[0] + k4[0]),
+      s[1] + p.DT/6 * (k1[1] + 2*k2[1] + 2*k3[1] + k4[1]),
+    ];
+    t += p.DT;
+    out.push({ t, y: s[0], v: s[1], a: model.rhs(t, s)[1] });
+    fHist.push(model.rhs(t, s));
+    if (s[0] < 0 && t > 1) return out;
+  }
+
+  while (t < p.TMAX) {
+    const n = fHist.length;
+    const f1 = fHist[n-1], f2 = fHist[n-2], f3 = fHist[n-3], f4 = fHist[n-4];
+    // AB4 predictor.
+    const pred = [
+      s[0] + p.DT/24 * (55*f1[0] - 59*f2[0] + 37*f3[0] - 9*f4[0]),
+      s[1] + p.DT/24 * (55*f1[1] - 59*f2[1] + 37*f3[1] - 9*f4[1]),
+    ];
+    const tNew = t + p.DT;
+    const fPred = model.rhs(tNew, pred);
+    // AM4 corrector.
+    s = [
+      s[0] + p.DT/24 * (9*fPred[0] + 19*f1[0] - 5*f2[0] + f3[0]),
+      s[1] + p.DT/24 * (9*fPred[1] + 19*f1[1] - 5*f2[1] + f3[1]),
+    ];
+    t = tNew;
+    out.push({ t, y: s[0], v: s[1], a: model.rhs(t, s)[1] });
+    fHist.push(model.rhs(t, s));
+    if (s[0] < 0 && t > 1) break;
+  }
+  return out;
+}
+
 function summarize(traj, tBurn) {
   let apoIdx = 0;
   for (let i = 1; i < traj.length; i++) if (traj[i].y > traj[apoIdx].y) apoIdx = i;
@@ -323,7 +381,7 @@ function makeChart(view) {
   const ctx = document.getElementById('chart').getContext('2d');
   if (chart) chart.destroy();
   if (!lastResult) return;
-  const { tE, tR, p, tBurn } = lastResult;
+  const { tE, tR, tA, p, tBurn } = lastResult;
 
   const downsample = (arr, n=400) => {
     if (arr.length <= n) return arr;
@@ -340,6 +398,7 @@ function makeChart(view) {
     const yLabel = field === 'y' ? 'Altitude (km)' : field === 'v' ? 'Velocity (m/s)' : 'Acceleration (m/s²)';
     const dsE = downsample(tE).map(p => ({ x: p.t, y: p[field] * scale }));
     const dsR = downsample(tR).map(p => ({ x: p.t, y: p[field] * scale }));
+    const dsA = downsample(tA).map(p => ({ x: p.t, y: p[field] * scale }));
 
     cfg = {
       type: 'line',
@@ -347,6 +406,7 @@ function makeChart(view) {
         datasets: [
           { label: 'Forward Euler', data: dsE, borderColor: '#f0883e', backgroundColor: 'rgba(240,136,62,0.1)', borderWidth: 2, pointRadius: 0, tension: 0.1 },
           { label: 'RK4', data: dsR, borderColor: '#2ea043', backgroundColor: 'rgba(46,160,67,0.1)', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, tension: 0.1 },
+          { label: 'ABM4 PECE', data: dsA, borderColor: '#9b59b6', backgroundColor: 'rgba(155,89,182,0.1)', borderWidth: 2, borderDash: [2, 3], pointRadius: 0, tension: 0.1 },
         ],
       },
       options: {
@@ -395,15 +455,15 @@ function buildConvergence(p, tBurn) {
   const refRun = rk4(model, { ...p, DT: 0.01 });
   const refApo = maxY(refRun);
 
-  const ePts = [], rPts = [];
+  const ePts = [], rPts = [], aPts = [];
   for (const h of dts) {
     const pp = { ...p, DT: h };
     const e = euler(model, pp);
     const r = rk4(model, pp);
-    const eApo = maxY(e);
-    const rApo = maxY(r);
-    ePts.push({ x: h, y: Math.max(Math.abs(eApo - refApo), 1e-6) });
-    rPts.push({ x: h, y: Math.max(Math.abs(rApo - refApo), 1e-6) });
+    const a = abm4(model, pp);
+    ePts.push({ x: h, y: Math.max(Math.abs(maxY(e) - refApo), 1e-6) });
+    rPts.push({ x: h, y: Math.max(Math.abs(maxY(r) - refApo), 1e-6) });
+    aPts.push({ x: h, y: Math.max(Math.abs(maxY(a) - refApo), 1e-6) });
   }
 
   // Reference slope lines
@@ -413,10 +473,11 @@ function buildConvergence(p, tBurn) {
   return {
     type: 'line',
     data: { datasets: [
-      { label: 'Euler error', data: ePts, borderColor: '#f0883e', backgroundColor: '#f0883e', pointRadius: 5, showLine: true, borderWidth: 2 },
-      { label: 'RK4 error',   data: rPts, borderColor: '#2ea043', backgroundColor: '#2ea043', pointRadius: 5, showLine: true, borderWidth: 2, borderDash: [6, 4] },
-      { label: 'slope 1 (Euler theoretical)', data: slope1, borderColor: '#8b97a7', borderWidth: 1, borderDash: [2, 3], pointRadius: 0 },
-      { label: 'slope 4 (RK4 theoretical)',   data: slope4, borderColor: '#4f8ef7', borderWidth: 1, borderDash: [2, 3], pointRadius: 0 },
+      { label: 'Euler error',     data: ePts, borderColor: '#f0883e', backgroundColor: '#f0883e', pointRadius: 5, showLine: true, borderWidth: 2 },
+      { label: 'RK4 error',       data: rPts, borderColor: '#2ea043', backgroundColor: '#2ea043', pointRadius: 5, showLine: true, borderWidth: 2, borderDash: [6, 4] },
+      { label: 'ABM4 PECE error', data: aPts, borderColor: '#9b59b6', backgroundColor: '#9b59b6', pointRadius: 5, showLine: true, borderWidth: 2, borderDash: [2, 3] },
+      { label: 'slope 1 (Euler theoretical)',        data: slope1, borderColor: '#8b97a7', borderWidth: 1, borderDash: [2, 3], pointRadius: 0 },
+      { label: 'slope 4 (RK4 / ABM4 theoretical)',   data: slope4, borderColor: '#4f8ef7', borderWidth: 1, borderDash: [2, 3], pointRadius: 0 },
     ] },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -446,8 +507,10 @@ function run() {
 
   const tE = euler(model, p);
   const tR = rk4(model, p);
+  const tA = abm4(model, p);
   const sE = summarize(tE, model.tBurn);
   const sR = summarize(tR, model.tBurn);
+  const sA = summarize(tA, model.tBurn);
 
   document.getElementById('e-apo').textContent  = fmtAlt(sE.apogee);
   document.getElementById('e-tapo').textContent = fmtT(sE.tApogee);
@@ -457,8 +520,12 @@ function run() {
   document.getElementById('r-tapo').textContent = fmtT(sR.tApogee);
   document.getElementById('r-vcut').textContent = fmtV(sR.vCut);
   document.getElementById('r-timp').textContent = fmtT(sR.tImpact);
+  document.getElementById('a-apo').textContent  = fmtAlt(sA.apogee);
+  document.getElementById('a-tapo').textContent = fmtT(sA.tApogee);
+  document.getElementById('a-vcut').textContent = fmtV(sA.vCut);
+  document.getElementById('a-timp').textContent = fmtT(sA.tImpact);
 
-  lastResult = { tE, tR, p, tBurn: model.tBurn };
+  lastResult = { tE, tR, tA, p, tBurn: model.tBurn };
   const active = document.querySelector('.tab.active').dataset.view;
   makeChart(active);
   updateTabInfo(active, p, sE, sR);
@@ -469,7 +536,7 @@ function updateTabInfo(view, p, sE, sR) {
     altitude: `Altitude vs time. The red dashed vertical line marks engine cutoff at t = ${((p.M0 - p.MDRY)/p.MDOT).toFixed(0)} s. After cutoff the rocket coasts under gravity + drag.`,
     velocity: `Velocity vs time. Note the kink at cutoff — acceleration is discontinuous because thrust drops to zero instantly while gravity stays on.`,
     acceleration: `Acceleration vs time. The discontinuity at cutoff has magnitude T/m_dry = ${(p.MDOT * p.VEXH / p.MDRY).toFixed(1)} m/s². Drag effects become visible during the ballistic phase.`,
-    convergence: `Apogee error vs step size, log–log. Forward Euler should track slope 1 (1st-order global error). RK4 should track slope 4. Reference = RK4 at h=0.01 s.`,
+    convergence: `Apogee error vs step size, log–log. Forward Euler tracks slope 1 (1st-order global error). RK4 and ABM4 PECE both track slope 4 (4th order). Reference = RK4 at h=0.01 s.`,
   };
   document.getElementById('tab-info').innerHTML = info[view];
 }

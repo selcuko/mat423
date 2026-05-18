@@ -1,6 +1,6 @@
 # Numerical Simulation of Rocket Flight
 
-Vertically-launched, variable-mass rocket. Forward Euler vs RK4 on the coupled `(y, v)` ODE system, with altitude-dependent gravity, exponential atmosphere, quadratic drag, and a ground-hold gate for sub-unity initial T/W. MAT423E coursework.
+Vertically-launched, variable-mass rocket. Three solvers — Forward Euler, classical RK4, and Adams-Bashforth-Moulton 4 (PECE predictor-corrector) — on the coupled `(y, v)` ODE system, with altitude-dependent gravity, exponential atmosphere, quadratic drag, and a ground-hold gate for sub-unity initial T/W. MAT423E coursework.
 
 **Live demo:** [mat423.vercel.app](https://mat423.vercel.app)
 
@@ -8,7 +8,7 @@ Vertically-launched, variable-mass rocket. Forward Euler vs RK4 on the coupled `
 
 ## What the simulation does
 
-A 500-tonne rocket burns fuel at `ṁ = 1500 kg/s`, ejected at `vₑ = 3000 m/s`, giving a constant thrust of `T = ṁ·vₑ = 4.5 MN` until the propellant runs out at `t_b = 300 s`. State is `(y, v)`; mass is closed-form in `t`. Two integrators march the state forward — Forward Euler (1st order) and classical RK4 (4th order) — and their convergence is measured against a refined-step RK4 reference.
+A 500-tonne rocket burns fuel at `ṁ = 1500 kg/s`, ejected at `vₑ = 3000 m/s`, giving a constant thrust of `T = ṁ·vₑ = 4.5 MN` until the propellant runs out at `t_b = 300 s`. State is `(y, v)`; mass is closed-form in `t`. Three integrators march the state forward — Forward Euler (1st order, single-step), classical RK4 (4th order, single-step), and Adams-Bashforth-Moulton 4 PECE (4th order, multistep predictor-corrector) — and their convergence is measured against a refined-step RK4 reference.
 
 `rocket_simulation.py` prints a summary and writes `trajectory.png`. `rocket_simulator.html` is the same physics in JavaScript with parameter inputs and live Chart.js plots.
 
@@ -64,13 +64,13 @@ Without this gate Euler/RK4 would tunnel through the ground in the first few ste
 
 ## Numerical methods
 
-Both solvers march the same state vector `s = [y, v]` with fixed step `h`.
+All three solvers march the same state vector `s = [y, v]` with fixed step `h`. They terminate when the rocket has come back down (`y < 0` after `t > 1 s`) or when `t_max` is reached.
 
-**Forward Euler** (1st order, one RHS eval/step):
+**Forward Euler** (1st order, single-step, one RHS eval/step):
 
 $$s_{n+1} = s_n + h \cdot f(t_n,\, s_n)$$
 
-**Classical RK4** (4th order, four RHS evals/step):
+**Classical RK4** (4th order, single-step, four RHS evals/step):
 
 $$
 \begin{aligned}
@@ -82,7 +82,19 @@ s_{n+1} &= s_n + \tfrac{h}{6}\,(k_1 + 2k_2 + 2k_3 + k_4)
 \end{aligned}
 $$
 
-Both integrators terminate when the rocket has come back down (`y < 0` after `t > 1 s`) or when `t_max` is reached.
+**Adams–Bashforth–Moulton 4, PECE mode** (4th order, 4-step, two RHS evals/step). Uses four past RHS values $f_n, f_{n-1}, f_{n-2}, f_{n-3}$; bootstrapped with three RK4 steps to fill the history.
+
+*Predictor — Adams-Bashforth 4 (explicit):*
+
+$$s^{*}_{n+1} = s_n + \tfrac{h}{24}\,\bigl(55 f_n - 59 f_{n-1} + 37 f_{n-2} - 9 f_{n-3}\bigr)$$
+
+*Evaluate at predicted state: $f^{*}_{n+1} = f(t_{n+1},\, s^{*}_{n+1})$.*
+
+*Corrector — Adams-Moulton 4 (implicit, evaluated at the predicted state):*
+
+$$s_{n+1} = s_n + \tfrac{h}{24}\,\bigl(9 f^{*}_{n+1} + 19 f_n - 5 f_{n-1} + f_{n-2}\bigr)$$
+
+ABM4 reaches the same 4th order of accuracy as RK4 at *half the cost per step* once the history is filled — two RHS evaluations instead of four. The trade-off is a smaller stability region and the need for a single-step bootstrap.
 
 ## Results
 
@@ -92,6 +104,7 @@ Default parameters, `h = 0.1 s`, `t_max = 1200 s`:
 |---|---|---|---|---|
 | Forward Euler | 1236.72 km | 829.0 s | 3986.4 m/s | t_max (1200 s) |
 | RK4           | 1235.15 km | 828.4 s | 3990.6 m/s | t_max (1200 s) |
+| ABM4 PECE     | 1236.90 km | 828.9 s | 3990.6 m/s | t_max (1200 s) |
 
 A Tsiolkovsky sanity check (no losses) gives an ideal burnout speed of
 `vₑ · ln(M₀/M_dry) = 3000 · ln(10) ≈ 6908 m/s`. The observed burnout speed of
@@ -101,17 +114,16 @@ straight-up trajectory — drag accounts for the small remainder.
 
 **Convergence study** (apogee in km, ref = RK4 at `h = 0.01 s`):
 
-| h [s] | Euler apogee | RK4 apogee |
-|---:|---:|---:|
-| 2.000 | 1180.11 | 1216.99 |
-| 1.000 | 1206.81 | 1225.61 |
-| 0.500 | 1220.45 | 1229.94 |
-| 0.100 | 1236.72 | 1235.15 |
-| 0.050 | 1232.89 | 1233.85 |
-| 0.010 | 1234.53 | 1234.37 |
+| h [s] | Euler | RK4 | ABM4 |
+|---:|---:|---:|---:|
+| 2.000 | 1180.11 | 1216.99 | 1183.50 |
+| 1.000 | 1206.81 | 1225.61 | 1208.55 |
+| 0.500 | 1220.45 | 1229.94 | 1221.33 |
+| 0.100 | 1236.72 | 1235.15 | 1236.90 |
+| 0.050 | 1232.89 | 1233.85 | 1232.98 |
+| 0.010 | 1234.53 | 1234.37 | 1234.55 |
 
-The log–log error vs `h` plot (HTML "Convergence" tab) shows the expected
-slopes — 1 for Euler, 4 for RK4.
+The log–log error vs `h` plot (HTML "Convergence" tab) shows the expected slopes — 1 for Euler, 4 for both RK4 and ABM4. At larger `h` the multistep error is dominated by the 27 s ground-hold phase, where most of the f-history is zero and the predictor effectively starts from cold — once the step shrinks, ABM4 tracks RK4 closely.
 
 ## Interactive demo
 
